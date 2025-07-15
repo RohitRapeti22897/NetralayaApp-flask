@@ -152,18 +152,3 @@ def clear_cart():
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-@app.route('/init-db')
-def init_db():
-    from models import db, User
-    db.create_all()
-
-    # Create admin if not exists
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin", is_admin=True)
-        admin.set_password("adminpass")
-        db.session.add(admin)
-        db.session.commit()
-
-    return "✅ Database initialized. Admin user created (admin / adminpass)."
-
