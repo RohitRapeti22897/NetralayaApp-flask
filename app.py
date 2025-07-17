@@ -177,5 +177,15 @@ def clear_cart():
 with app.app_context():
     db.create_all()
 
+@app.route('/create-admin')
+def create_admin_user():
+    if User.query.filter_by(username='admin').first():
+        return "Admin already exists"
+    admin = User(username='admin', is_admin=True)
+    admin.set_password('adminpass')
+    db.session.add(admin)
+    db.session.commit()
+    return "Admin user created. You can now log in as admin/adminpass"
+
 if __name__ == '__main__':
     app.run(debug=True)
