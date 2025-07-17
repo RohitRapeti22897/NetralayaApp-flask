@@ -179,13 +179,27 @@ with app.app_context():
 
 @app.route('/create-admin')
 def create_admin_user():
-    if User.query.filter_by(username='admin').first():
-        return "Admin already exists"
-    admin = User(username='admin', is_admin=True)
-    admin.set_password('adminpass')
-    db.session.add(admin)
-    db.session.commit()
-    return "Admin user created. You can now log in as admin/adminpass"
+    from models import User
+    try:
+        existing = User.query.filter_by(username='admin').first()
+        if existing:
+            return "Admin already exists."
+        
+        admin = User(username='admin', is_admin=True)
+        admin.set_password('adminpass')
+        db.session.add(admin)
+        db.session.commit()
+
+        # Confirm it's now in DB
+        saved = User.query.filter_by(username='admin').first()
+        if saved and saved.check_password('adminpass'):
+            return "✅ Admin user created and password verified successfully."
+        else:
+            return "❌ User creation failed after commit."
+
+    except Exception as e:
+        return f"Error: {str(e)}"
+
 
 if __name__ == '__main__':
     app.run(debug=True)
