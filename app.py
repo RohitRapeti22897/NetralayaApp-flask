@@ -4,7 +4,7 @@ from flask_migrate import Migrate
 from config import Config
 from models import db, User, Product
 from forms import LoginForm, RegistrationForm, ProductForm
-from flask import request
+import traceback
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -16,9 +16,15 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "You must be logged in to access the home page and offers."
 
+
 @login_manager.user_loader
 def load_user(id):
-    return User.query.get(int(id))
+    try:
+        return User.query.get(int(id))
+    except Exception as e:
+        print("Error loading user:", e)
+        return None
+
 
 @app.route('/')
 @login_required
@@ -41,7 +47,8 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html', form=form)
 
-@app.route('/login', methods=['GET','POST'])
+
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -55,37 +62,50 @@ def login():
         flash('Invalid credentials')
     return render_template('login.html', form=form)
 
+
 @app.route('/logout')
 def logout():
     logout_user()
     return redirect(url_for('index'))
 
+
 @app.route('/cart')
 @login_required
 def cart():
-    cart = session.get('cart', {})
-    items = []
-    total = 0
-    for pid, qty in cart.items():
-        p = Product.query.get(int(pid))
-        subtotal = p.price * qty
-        items.append({'product':p, 'quantity':qty, 'subtotal':subtotal})
-        total += subtotal
-    return render_template('cart.html', cart_items=items, total=total)
+    try:
+        cart = session.get('cart', {})
+        items = []
+        total = 0
+        for pid, qty in cart.items():
+            p = Product.query.get(int(pid))
+            if not p:
+                print(f"Product with ID {pid} not found. Skipping.")
+                continue  # Skip missing products
+            subtotal = p.price * qty
+            items.append({'product': p, 'quantity': qty, 'subtotal': subtotal})
+            total += subtotal
+        return render_template('cart.html', cart_items=items, total=total)
+    except Exception as e:
+        print("Error in /cart route:", e)
+        traceback.print_exc()
+        return "Internal Server Error", 500
+
 
 @app.route('/add_to_cart/<int:pid>')
 @login_required
 def add_to_cart(pid):
     cart = session.get('cart', {})
-    cart[str(pid)] = cart.get(str(pid),0) + 1
+    cart[str(pid)] = cart.get(str(pid), 0) + 1
     session['cart'] = cart
     return redirect(url_for('index'))
+
 
 @app.route('/checkout')
 @login_required
 def checkout():
     session.pop('cart', None)
     return render_template('checkout.html')
+
 
 # Admin routes
 @app.route('/admin/products')
@@ -96,6 +116,7 @@ def admin_products():
         return redirect(url_for('index'))
     products = Product.query.all()
     return render_template('admin_products.html', products=products)
+
 
 @app.route('/admin/product/new', methods=['GET', 'POST'])
 @app.route('/admin/product/<int:pid>/edit', methods=['GET', 'POST'])
@@ -113,9 +134,10 @@ def edit_product(pid=None):
         db.session.add(product)
         db.session.commit()
         flash('Product saved.')
-        return redirect(url_for('admin_products'))  # ← Redirect prevents duplicate submissions
+        return redirect(url_for('admin_products'))
 
     return render_template('product_form.html', form=form)
+
 
 @app.route('/admin/product/<int:pid>/delete', methods=['POST'])
 @login_required
@@ -123,12 +145,13 @@ def delete_product(pid):
     if not current_user.is_admin:
         flash('Admin access required')
         return redirect(url_for('index'))
-    
+
     product = Product.query.get_or_404(pid)
     db.session.delete(product)
     db.session.commit()
     flash(f'Product "{product.name}" has been deleted.')
     return redirect(url_for('admin_products'))
+
 
 @app.route('/remove_one/<int:pid>')
 @login_required
@@ -143,12 +166,14 @@ def remove_one_from_cart(pid):
         session['cart'] = cart
     return redirect(url_for('cart'))
 
+
 @app.route('/clear_cart')
 @login_required
 def clear_cart():
     session.pop('cart', None)
     flash("Cart cleared.")
     return redirect(url_for('cart'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)
